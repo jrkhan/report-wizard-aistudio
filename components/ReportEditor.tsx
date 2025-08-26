@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ChatMessage, Report, ChatRole, ToolCall } from '../types';
+import { ChatMessage, Report, ChatRole } from '../types';
 import * as geminiService from '../services/geminiService';
 import * as dbService from '../services/databaseService';
 import ChatMessageComponent from './ChatMessage';
 import ReportRenderer from './ReportRenderer';
 import ParameterForm from './ParameterForm';
-import { SendIcon, LoadingSpinner, SaveIcon } from './icons';
+import { SendIcon, LoadingSpinner, SaveIcon, TrashIcon } from './icons';
 
 interface ReportEditorProps {
     initialMessage: ChatMessage | null;
@@ -138,6 +138,33 @@ const ReportEditor: React.FC<ReportEditorProps> = ({ initialMessage, onSave }) =
         const newReport = { ...draftMessage.report, charts: newCharts };
         setDraftMessage({ ...draftMessage, report: newReport });
     };
+    
+    const handleChartDetailChange = (index: number, field: 'id' | 'dataKey', value: string) => {
+        if (!draftMessage.report?.charts) return;
+        const newCharts = [...draftMessage.report.charts];
+        newCharts[index] = { ...newCharts[index], [field]: value };
+        const newReport = { ...draftMessage.report, charts: newCharts };
+        setDraftMessage({ ...draftMessage, report: newReport });
+    };
+
+    const handleAddChart = () => {
+        if (!draftMessage.report) return;
+        const newChart = { id: `chart-${Date.now()}`, dataKey: 'new_data', code: `// New D3 chart code\n// The 'svg' and 'data' variables are available.\nconst margin = {top: 20, right: 20, bottom: 30, left: 40};\nconst width = 500 - margin.left - margin.right;\nconst height = 350 - margin.top - margin.bottom;\nconst chart = svg.append('g').attr('transform', \`translate(\${margin.left},\${margin.top})\`);` };
+        const newCharts = [...(draftMessage.report.charts || []), newChart];
+        const newReport = { ...draftMessage.report, charts: newCharts };
+        setDraftMessage({ ...draftMessage, report: newReport });
+        setActiveTab('charts');
+    };
+
+    const handleRemoveChart = (index: number) => {
+        if (!draftMessage.report?.charts) return;
+        if (window.confirm('Are you sure you want to delete this chart?')) {
+            const newCharts = draftMessage.report.charts.filter((_, i) => i !== index);
+            const newReport = { ...draftMessage.report, charts: newCharts };
+            setDraftMessage({ ...draftMessage, report: newReport });
+        }
+    };
+
 
     const handleQueryChange = (index: number, field: 'sql' | 'name', value: string) => {
          if (!draftMessage.report?.queries) return;
@@ -145,6 +172,24 @@ const ReportEditor: React.FC<ReportEditorProps> = ({ initialMessage, onSave }) =
          newQueries[index] = { ...newQueries[index], [field]: value };
          const newReport = { ...draftMessage.report, queries: newQueries };
          setDraftMessage({ ...draftMessage, report: newReport });
+    };
+
+    const handleAddQuery = () => {
+        if (!draftMessage.report) return;
+        const newQuery = { name: `query_${Date.now()}`, sql: 'SELECT * FROM sales;', params: [] };
+        const newQueries = [...(draftMessage.report.queries || []), newQuery];
+        const newReport = { ...draftMessage.report, queries: newQueries };
+        setDraftMessage({ ...draftMessage, report: newReport });
+        setActiveTab('queries');
+    };
+
+    const handleRemoveQuery = (index: number) => {
+        if (!draftMessage.report?.queries) return;
+        if (window.confirm('Are you sure you want to delete this query?')) {
+            const newQueries = draftMessage.report.queries.filter((_, i) => i !== index);
+            const newReport = { ...draftMessage.report, queries: newQueries };
+            setDraftMessage({ ...draftMessage, report: newReport });
+        }
     };
 
     const isInteractive = !!draftMessage.report?.queries?.some(q => q.params.length > 0);
@@ -174,18 +219,75 @@ const ReportEditor: React.FC<ReportEditorProps> = ({ initialMessage, onSave }) =
                     {activeTab === 'markdown' && draftMessage.report && (
                         <CodeTextArea value={draftMessage.report.markdown} onChange={handleMarkdownChange} />
                     )}
-                    {activeTab === 'charts' && draftMessage.report?.charts.map((chart, i) => (
-                        <div key={i} className="mb-2">
-                           <label className="block text-xs font-medium text-gray-400 mb-1">Chart: {chart.id} (data: {chart.dataKey})</label>
-                           <CodeTextArea value={chart.code} onChange={e => handleD3CodeChange(i, e.target.value)} />
-                        </div>
-                    ))}
-                    {activeTab === 'queries' && draftMessage.report?.queries?.map((query, i) => (
-                        <div key={i} className="mb-2">
-                            <label className="block text-xs font-medium text-gray-400 mb-1">Query: {query.name}</label>
-                            <CodeTextArea value={query.sql} onChange={e => handleQueryChange(i, 'sql', e.target.value)} />
-                        </div>
-                    ))}
+                    {activeTab === 'charts' && (
+                        <>
+                            {draftMessage.report?.charts.map((chart, i) => (
+                                <div key={i} className="mb-3 p-2 border border-gray-700 rounded-md bg-gray-900/80">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="flex-1">
+                                            <label className="block text-xs font-medium text-gray-400 mb-1">Chart ID</label>
+                                            <input 
+                                                type="text" 
+                                                value={chart.id}
+                                                onChange={e => handleChartDetailChange(i, 'id', e.target.value)}
+                                                className="w-full p-1 bg-gray-800 text-gray-200 font-mono text-xs rounded-md border border-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                                            />
+                                        </div>
+                                        <div className="flex-1">
+                                            <label className="block text-xs font-medium text-gray-400 mb-1">Data Key</label>
+                                            <input 
+                                                type="text" 
+                                                value={chart.dataKey}
+                                                onChange={e => handleChartDetailChange(i, 'dataKey', e.target.value)}
+                                                className="w-full p-1 bg-gray-800 text-gray-200 font-mono text-xs rounded-md border border-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                                            />
+                                        </div>
+                                        <button onClick={() => handleRemoveChart(i)} className="text-gray-500 hover:text-red-400 mt-4 self-start" aria-label="Delete chart">
+                                            <TrashIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                    <label className="block text-xs font-medium text-gray-400 mb-1">D3 Code</label>
+                                    <CodeTextArea value={chart.code} onChange={e => handleD3CodeChange(i, e.target.value)} />
+                                </div>
+                            ))}
+                            <button
+                                onClick={handleAddChart}
+                                className="w-full mt-2 px-3 py-1.5 bg-gray-700 rounded text-white text-xs font-semibold hover:bg-gray-600 transition-colors"
+                            >
+                                + Add Chart
+                            </button>
+                        </>
+                    )}
+                    {activeTab === 'queries' && (
+                        <>
+                            {draftMessage.report?.queries?.map((query, i) => (
+                                <div key={i} className="mb-3 p-2 border border-gray-700 rounded-md bg-gray-900/80">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="flex-1">
+                                            <label className="block text-xs font-medium text-gray-400 mb-1">Query Name</label>
+                                            <input 
+                                                type="text" 
+                                                value={query.name}
+                                                onChange={e => handleQueryChange(i, 'name', e.target.value)}
+                                                className="w-full p-1 bg-gray-800 text-gray-200 font-mono text-xs rounded-md border border-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                                            />
+                                        </div>
+                                        <button onClick={() => handleRemoveQuery(i)} className="text-gray-500 hover:text-red-400 mt-4 self-start" aria-label="Delete query">
+                                            <TrashIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                    <label className="block text-xs font-medium text-gray-400 mb-1">SQL</label>
+                                    <CodeTextArea value={query.sql} onChange={e => handleQueryChange(i, 'sql', e.target.value)} />
+                                </div>
+                            ))}
+                             <button
+                                onClick={handleAddQuery}
+                                className="w-full mt-2 px-3 py-1.5 bg-gray-700 rounded text-white text-xs font-semibold hover:bg-gray-600 transition-colors"
+                            >
+                                + Add Query
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -264,7 +366,7 @@ const ChatInput = ({ onSubmit, isLoading }: { onSubmit: (text: string) => void, 
 const TabButton = ({ name, activeTab, onClick }: { name: string, activeTab: string, onClick: () => void }) => (
     <button
         onClick={onClick}
-        className={`px-3 py-1 text-xs rounded-md ${activeTab === name.toLowerCase() ? 'bg-cyan-600 text-white' : 'text-gray-300 hover:bg-gray-700'}`}
+        className={`px-3 py-1 text-xs rounded-md ${activeTab.toLowerCase() === name.toLowerCase() ? 'bg-cyan-600 text-white' : 'text-gray-300 hover:bg-gray-700'}`}
     >
         {name}
     </button>
