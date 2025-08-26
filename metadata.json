@@ -1,0 +1,5 @@
+{
+  "name": "Gemini SQL Charting Chatbot",
+  "description": "An intelligent chatbot powered by Gemini 2.5 Flash. It can understand user requests for data visualizations, generate and execute mock SQL queries, and render the results as D3.js charts. It also features a modular, in-memory vector store for embedding management.",
+  "requestFramePermissions": []
+}
